@@ -1,0 +1,71 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+const fs=require('node:fs');
+const script=fs.readFileSync(__dirname+'/'+(process.env.VA_SCRIPT || 'veziaici-helper.user.js'),'utf8');
+const episode='<h1>Las Fierbinti – Sezonul 22 Episodul 2 – 8 Septembrie 2022</h1>';
+async function until(fn){const end=Date.now()+3000;while(!fn()){if(Date.now()>end)throw Error('Timeout');await new Promise(r=>setTimeout(r,10));}}
+test('browser: current page overrides old fields; scans sequentially and saves all matched series episodes',async()=>{
+ const dom=new JSDOM(episode,{url:'https://veziaici.net/example/',runScripts:'outside-only'}); const w=dom.window; const calls=[];
+ w.localStorage.setItem('va-selection',JSON.stringify({name:'Las Fierbinti',season:1,episode:1}));
+ w.fetch=async u=>{if(new URL(u).pathname.startsWith('/wp-json/')) return {ok:false,status:404,json:async()=>({code:'rest_no_route'})};const p=new URL(u).pathname;calls.push(p);return {status:p==='/page/3/'?404:200,ok:p!=='/page/3/',url:String(u),text:async()=>p==='/'?'<h4><a href="/random-a/">Las Fierbinti Sezonul 22 Episodul 3</a></h4>':'<h4><a href="/random-b/">Las Fierbinti Sezonul 30 Episodul 10</a></h4>'};};
+ try {w.eval(script);assert.equal(w.document.querySelector('#va-season').value,'22');
+ w.document.querySelector('#va-search').click();
+ await until(()=>w.document.querySelector('#va-status').textContent.includes('Indexare terminată'));
+ assert.deepEqual(calls,['/','/page/2/','/page/3/']);
+ const index=JSON.parse(w.localStorage.getItem('va-index-v1'));
+ assert.ok(index['las fierbinti|22|2']);assert.ok(index['las fierbinti|22|3']);assert.ok(index['las fierbinti|30|10']);
+ assert.equal(index['las fierbinti|22|3'][0].url,'https://veziaici.net/random-a/');
+ } finally {w.close();}
+});
+test('browser: Stop preserves cache and terminates scan',async()=>{
+ const dom=new JSDOM(episode,{url:'https://veziaici.net/example/',runScripts:'outside-only'});const w=dom.window;
+ w.fetch=async u=>{ if(new URL(u).pathname.startsWith('/wp-json/')) return {ok:false,status:404,json:async()=>({code:'rest_no_route'})}; return {status:200,ok:true,url:String(u),text:async()=>'<h4><a href="/e3/">Las Fierbinti Sezonul 22 Episodul 3</a></h4>'};};
+ try {w.eval(script);w.document.querySelector('#va-search').click();await until(()=>JSON.parse(w.localStorage.getItem('va-index-v1'))['las fierbinti|22|3']);w.document.querySelector('#va-stop').click();await until(()=>w.document.querySelector('#va-status').textContent.startsWith('Oprit.'));assert.ok(JSON.parse(w.localStorage.getItem('va-index-v1'))['las fierbinti|22|3']);}finally{w.close();}
+});
+test('edge controls: two accessible buttons, hover reveals, click delegates navigation',()=>{
+ const dom=new JSDOM(episode,{url:'https://veziaici.net/example/',runScripts:'outside-only'});const w=dom.window;
+ try {w.eval(script);let clicked=0;w.document.querySelector('#va-next').onclick=()=>clicked++;
+ const edge=w.document.querySelector('#va-edge-right button');assert.ok(edge);assert.equal(edge.getAttribute('aria-label'),'Episod următor →');edge.dispatchEvent(new w.Event('mouseenter'));assert.equal(edge.style.opacity,'1');assert.equal(clicked,0);edge.click();assert.equal(clicked,1);
+ assert.ok(w.document.querySelector('#va-edge-left button'));
+ }finally{w.close();}
+});
+test('integrated autostart keeps menu visible and starts fetching without a click',async()=>{
+ const dom=new JSDOM(episode,{url:'https://veziaici.net/example/',runScripts:'outside-only'});const w=dom.window;let calls=0;
+ w.fetch=async u=>{if(new URL(u).pathname.startsWith('/wp-json/')) return {ok:false,status:404,json:async()=>({code:'rest_no_route'})};calls++;return {status:404,ok:false,url:String(u),text:async()=>''};};
+ try{w.eval(script);assert.ok(w.document.querySelector('#va-search'));assert.ok(w.document.querySelector('#va-edge-right button'));await until(()=>calls>0);assert.equal(calls,1);}finally{w.close();}
+});
+test('next episode on a distant, unordered search page navigates using the real opaque URL',async()=>{
+ const dom=new JSDOM('<h1>Las Fierbinti Sezonul 30 Episodul 11</h1>',{url:'https://veziaici.net/opaque-current/',runScripts:'outside-only'});const w=dom.window;const calls=[];
+ const pages={1:[29,31],2:[22,2],3:[30,12]};
+ w.fetch=async u=>{if(new URL(u).pathname.startsWith('/wp-json/')) return {ok:false,status:404,json:async()=>({code:'rest_no_route'})};const page=+(new URL(u).pathname.match(/page\/(\d+)/)?.[1]||1);calls.push(page);const ep=pages[page];return {status:ep?200:404,ok:!!ep,url:String(u),text:async()=>ep?`<h4><a href="/opaque-${page}/">Las Fierbinti Sezonul ${ep[0]} Episodul ${ep[1]}</a></h4>`:''};};
+ try {w.eval(script.replaceAll('location.assign(', 'window.__go('));w.__go=url=>{w.destination=url;};w.document.querySelector('#va-next').click();await until(()=>w.destination);
+ assert.deepEqual(calls,[1,2,3]);assert.equal(w.destination,'https://veziaici.net/opaque-3/');assert.equal(w.document.querySelector('#va-episode').value,'11');assert.ok(JSON.parse(w.localStorage.getItem('va-index-v1'))['las fierbinti|30|11']);
+ }finally{w.close();}
+});
+test('resumed scan checks earlier pages before declaring requested episode unfound',async()=>{
+ const dom=new JSDOM('<h1>Las Fierbinti Sezonul 30 Episodul 11</h1>',{url:'https://veziaici.net/current/',runScripts:'outside-only'});const w=dom.window;const calls=[];
+ w.localStorage.setItem('va-cursors-v1',JSON.stringify({'las fierbinti':3}));
+ w.fetch=async u=>{if(new URL(u).pathname.startsWith('/wp-json/')) return {ok:false,status:404,json:async()=>({code:'rest_no_route'})};const page=+(new URL(u).pathname.match(/page\/(\d+)/)?.[1]||1);calls.push(page);return {status:page===4?404:200,ok:page!==4,url:String(u),text:async()=>`<h4><a href="/found-${page}/">Las Fierbinti Sezonul 30 Episodul ${page===1?12:8}</a></h4>`};};
+ try {w.eval(script.replaceAll('location.assign(', 'window.__go('));w.__go=url=>w.destination=url;w.document.querySelector('#va-next').click();await until(()=>w.destination);assert.deepEqual(calls,[3,4,1]);assert.equal(w.destination,'https://veziaici.net/found-1/');}finally{w.close();}
+});
+test('API fast path indexes distant episodes without fetching HTML search pages',async()=>{
+ const dom=new JSDOM('<h1>Las Fierbinti Sezonul 22 Episodul 2</h1>',{url:'https://veziaici.net/current/',runScripts:'outside-only'});const w=dom.window;const calls=[];
+ w.fetch=async u=>{assert.equal(new URL(u).pathname,'/wp-json/wp/v2/search');const page=+new URL(u).searchParams.get('page');calls.push(page);return {ok:true,json:async()=>page===1?[{title:'Las Fierbinti Sezonul 30 Episodul 11',url:'https://veziaici.net/recent/'}]:page===2?[{title:'Las Fierbinti &#8211; Sezonul 22 Episodul 3',url:'https://veziaici.net/opaque-older/'}]:[]};};
+ try{w.eval(script.replaceAll('location.assign(', 'window.__go('));w.__go=url=>w.destination=url;w.document.querySelector('#va-next').click();await until(()=>w.destination);assert.deepEqual(calls,[1,2]);assert.equal(w.destination,'https://veziaici.net/opaque-older/');assert.ok(JSON.parse(w.localStorage.getItem('va-index-v1'))['las fierbinti|30|11']);}finally{w.close();}
+});
+test('Stop before autostart prevents network requests',async()=>{
+ const dom=new JSDOM(episode,{url:'https://veziaici.net/current/',runScripts:'outside-only'});const w=dom.window;let calls=0;
+ w.fetch=async()=>{calls++;throw Error('Unexpected request');};
+ try{w.eval(script);w.document.querySelector('#va-stop').click();await new Promise(r=>setTimeout(r,950));assert.equal(calls,0);assert.ok(w.document.querySelector('#va-helper'));}finally{w.close();}
+});
+test('saved video preferences and another tab index are restored safely',()=>{
+ const dom=new JSDOM(episode,{url:'https://veziaici.net/current/',runScripts:'outside-only'});const w=dom.window;
+ w.localStorage.setItem('va-video-options-v1',JSON.stringify({skip:90,at:1800,mode:'time',next:true,intro:true}));
+ try{w.eval(script);assert.equal(w.document.querySelector('#va-skiptime').value,'90');assert.equal(w.document.querySelector('#va-auto').checked,true);assert.equal(w.document.querySelector('#va-intro-auto').checked,true);
+ const newValue=JSON.stringify({'las fierbinti|22|3':[{url:'https://veziaici.net/opaque-new/',title:'Las Fierbinti Sezonul 22 Episodul 3'}]});
+ w.dispatchEvent(new w.StorageEvent('storage',{key:'va-index-v1',newValue}));
+ assert.ok([...w.document.querySelector('#va-catalog').options].some(o=>o.value==='https://veziaici.net/opaque-new/'));
+ assert.match(w.document.querySelector('#va-neighbors').textContent,/E3: salvat/);
+ }finally{w.close();}
+});
