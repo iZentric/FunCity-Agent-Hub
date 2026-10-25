@@ -25,3 +25,5 @@ jobs:
       - run: npm install --prefix /tmp/va-e2e playwright-core@1.64.1 @sparticuz/chromium@153.0.0 --no-audit --no-fund
       - name: Chromium cross-origin integration (controlled website and media-clock fixtures)
         run: NODE_PATH=/tmp/va-e2e/node_modules node tools/veziaici-e2e.cjs
+      - name: Chromium Clicksud navigation and trusted iframe integration
+        run: VA_SITE=clicksud.xin NODE_PATH=/tmp/va-e2e/node_modules node tools/veziaici-e2e.cjs

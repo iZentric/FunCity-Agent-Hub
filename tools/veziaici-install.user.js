@@ -1,11 +1,13 @@
 // ==UserScript==
-// @name         VeziAici — Navigator complet automat
+// @name         Navigator episoade — VeziAici și Clicksud
 // @namespace    funcity-tools
-// @version      1.0.1
+// @version      1.1.0
 // @description  Caută episoade după titlu; controlează numai videoclipuri HTML5 accesibile.
 // @match        https://veziaici.net/*
 // @match        https://www.veziaici.net/*
 // @match        http://veziaici.net/*
+// @match        https://clicksud.xin/*
+// @match        https://www.clicksud.xin/*
 // @grant        none
 // @match        https://vidmoly.org/embed-*
 // @run-at       document-idle
@@ -48,7 +50,7 @@
       page++;
     }
   }
-  const siteOrigins=new Set(['https://veziaici.net','https://www.veziaici.net','http://veziaici.net']);
+  const siteOrigins=new Set(['https://veziaici.net','https://www.veziaici.net','http://veziaici.net','https://clicksud.xin','https://www.clicksud.xin']);
   if(location.hostname==='vidmoly.org') {
     if(!location.pathname.startsWith('/embed-')) return;
     let parentOrigin=null;
@@ -69,10 +71,11 @@
     setInterval(report,1000);document.addEventListener('ended',report,true);return;
   }
   if(!siteOrigins.has(location.origin) || window.top!==window.self) return;
+  const articleOrigins=new Set([...siteOrigins].filter(origin=>new URL(origin).hostname.replace(/^www\./,'')===location.hostname.replace(/^www\./,'')));
   if (document.getElementById('va-helper')) return;
   const box = document.createElement('div'); box.id='va-helper';
   box.style.cssText='position:fixed;bottom:12px;right:72px;z-index:2147483647;background:#18202b;color:white;padding:14px;border:1px solid #90a4ba;border-radius:12px;width:310px;max-width:calc(100vw - 84px);font:14px system-ui;box-shadow:0 4px 24px #0008';
-  box.innerHTML=`<b>🎬 Navigator · 1.0.1</b> <button id="va-hide">−</button><section><small id="va-current">Identificare după titlu; episoadele pot fi pe orice pagină.</small><p><input id="va-name" placeholder="Nume serial" style="width:95%"></p><label>Sezon <input id="va-season" type="number" min="1" value="1" style="width:50px"></label> <label>Episod <input id="va-episode" type="number" min="1" value="1" style="width:50px"></label><p><button id="va-search">Caută exact</button> <button id="va-stop">Oprește</button> <button id="va-reset">De la pagina 1</button></p><p><button id="va-prev">Episod −1</button> <button id="va-next">Episod +1</button></p><p id="va-status" aria-live="polite"></p><div id="va-results" style="max-height:150px;overflow:auto"></div><div id="va-neighbors"></div><p><select id="va-catalog" style="width:100%"><option value="">Episoade salvate…</option></select></p><hr><button id="va-back">−10 sec</button> <button id="va-forward">+10 sec</button><p>Skip <input id="va-skiptime" type="number" min="0" value="85" style="width:60px"> sec <button id="va-skip">Aplică</button></p><p><label><input id="va-intro-auto" type="checkbox"> Sari intro automat după pornirea redării</label></p><label><input id="va-auto" type="checkbox"> Următor automat</label><p>Mod <select id="va-mode"><option value="end">La final</option><option value="time">La secunda aleasă</option></select> <input id="va-at" type="number" min="1" value="1440" style="width:65px"></p><small>Control HTML5 local și player Vidmoly asistat. Alte servere pot fi incompatibile. Următorul deschide direct potrivirea unică din index; la ambiguitate alegi tu. Indexarea pornește automat. Opțiunile video se păstrează după activare.</small><p id="va-video-status" aria-live="polite"></p></section>`;
+  box.innerHTML=`<b>🎬 Navigator · 1.1.0</b> <button id="va-hide">−</button><section><small id="va-current">Identificare după titlu; episoadele pot fi pe orice pagină.</small><p><input id="va-name" placeholder="Nume serial" style="width:95%"></p><label>Sezon <input id="va-season" type="number" min="1" value="1" style="width:50px"></label> <label>Episod <input id="va-episode" type="number" min="1" value="1" style="width:50px"></label><p><button id="va-search">Caută exact</button> <button id="va-stop">Oprește</button> <button id="va-reset">De la pagina 1</button></p><p><button id="va-prev">Episod −1</button> <button id="va-next">Episod +1</button></p><p id="va-status" aria-live="polite"></p><div id="va-results" style="max-height:150px;overflow:auto"></div><div id="va-neighbors"></div><p><select id="va-catalog" style="width:100%"><option value="">Episoade salvate…</option></select></p><hr><button id="va-back">−10 sec</button> <button id="va-forward">+10 sec</button><p>Skip <input id="va-skiptime" type="number" min="0" value="85" style="width:60px"> sec <button id="va-skip">Aplică</button></p><p><label><input id="va-intro-auto" type="checkbox"> Sari intro automat după pornirea redării</label></p><label><input id="va-auto" type="checkbox"> Următor automat</label><p>Mod <select id="va-mode"><option value="end">La final</option><option value="time">La secunda aleasă</option></select> <input id="va-at" type="number" min="1" value="1440" style="width:65px"></p><small>Control HTML5 local și player Vidmoly asistat. Alte servere pot fi incompatibile. Următorul deschide direct potrivirea unică din index; la ambiguitate alegi tu. Indexarea pornește automat. Opțiunile video se păstrează după activare.</small><p id="va-video-status" aria-live="polite"></p></section>`;
   const style=document.createElement('style');
   style.textContent=`#va-helper{box-sizing:border-box;width:360px!important;background:linear-gradient(145deg,#142337,#0c1422)!important;border:1px solid #365273!important;border-radius:18px!important;padding:18px!important;box-shadow:0 12px 50px #000a!important}#va-helper *{box-sizing:border-box}#va-helper b{font-size:17px}#va-helper p{margin:12px 0}#va-helper input,#va-helper select{background:#0a1220;color:#f0f6ff;border:1px solid #426080;border-radius:7px;padding:7px;max-width:100%}#va-helper button{background:#243b57;color:#f4f8ff;border:1px solid #426080;padding:8px 10px;border-radius:8px;cursor:pointer;margin:2px}#va-helper button:hover{background:#365879}#va-helper #va-search{background:#2877d6;border-color:#559aff}#va-helper small{display:block;color:#afc2d9;line-height:1.5;margin-top:8px}#va-helper #va-status{padding:10px;background:#ffffff09;border-radius:8px;line-height:1.5}#va-helper section{max-height:75vh;overflow:auto}#va-helper hr{border:0;border-top:1px solid #365273}`;
   document.head.append(style);
@@ -95,7 +98,7 @@
   function remember(p,href,title) {
     try {
       const u=new URL(href,location.href); u.hash='';
-      if(!siteOrigins.has(u.origin) || !/^https?:$/.test(u.protocol)) return;
+      if(!articleOrigins.has(u.origin) || !/^https?:$/.test(u.protocol)) return;
       const k=key(p); const entries=Array.isArray(index[k])?index[k]:[];
       index[k]=entries.filter(e=>e.url!==u.href).concat({url:u.href,title,time:Date.now()});
     } catch {}
@@ -114,7 +117,7 @@
       localStorage.setItem(INDEX,JSON.stringify(index));storageOK=true;
     }catch {storageOK=false;}
   }
-  function cached(p) {return (Array.isArray(index[key(p)])?index[key(p)]:[]).filter(e=>{try{const u=new URL(e.url);return siteOrigins.has(u.origin) && /^https?:$/.test(u.protocol);}catch{return false;}});}
+  function cached(p) {return (Array.isArray(index[key(p)])?index[key(p)]:[]).filter(e=>{try{const u=new URL(e.url);return articleOrigins.has(u.origin) && /^https?:$/.test(u.protocol);}catch{return false;}});}
   if(current) {remember(current,location.href,document.querySelector('h1')?.textContent||'Episod');save();}
   function show(p) {
     $('results').replaceChildren();

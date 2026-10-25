@@ -86,3 +86,8 @@ test('www homepage accepts actual canonical API URLs instead of silently discard
  w.fetch=async()=>({ok:true,json:async()=>[{title:'Las Fierbinti Sezonul 30 Episodul 11',url:'https://veziaici.net/actual-canonical/'}]});
  try{w.eval(script.replaceAll('location.assign(', 'window.__go('));w.__go=url=>w.destination=url;w.document.querySelector('#va-season').value='30';w.document.querySelector('#va-episode').value='11';w.document.querySelector('#va-search').click();await until(()=>w.destination);assert.equal(w.destination,'https://veziaici.net/actual-canonical/');}finally{w.close();}
 });
+test('Clicksud: discovers live-observed E10 URL and rejects links to the other site',async()=>{
+ const dom=new JSDOM('<h1>Las Fierbinti Sezonul 30 Episodul 11 Online 22 Octombrie</h1>',{url:'https://clicksud.xin/las-fierbinti-sezonul-30-episodul-11-online-22-octombrie/',runScripts:'outside-only'});const w=dom.window;const expected='https://clicksud.xin/las-fierbinti-sezonul-30-episodul-10-complet-19-octombrie/';const calls=[];
+ w.fetch=async u=>{const page=+new URL(u).searchParams.get('page');calls.push(page);return {ok:true,json:async()=>page===1?[{title:'Las Fierbinti Sezonul 30 Episodul 10 Complet 19 Octombrie',url:'https://veziaici.net/not-on-clicksud/'}]:page===2?[{title:'Las Fierbinti Sezonul 30 Episodul 10 Complet 19 Octombrie',url:expected}]:[]};};
+ try{w.eval(script.replaceAll('location.assign(', 'window.__go('));w.__go=url=>w.destination=url;w.document.querySelector('#va-prev').click();await until(()=>w.destination);assert.equal(w.destination,expected);assert.deepEqual(calls,[1,2]);assert.ok(!Object.values(JSON.parse(w.localStorage.getItem('va-index-v1'))).flat().some(e=>e.url.includes('veziaici.net')));}finally{w.close();}
+});
