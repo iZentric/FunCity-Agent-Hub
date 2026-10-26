@@ -254,7 +254,7 @@
     const p=first?target():current||target();
     if(!p.name||!Number.isSafeInteger(p.season)||p.season&lt;1) return status('Completează serialul și sezonul.');
     const choose=()=&gt;{const list=playlistEpisodes(p);return first?list[0]:direction&gt;0?list.find(n=&gt;n&gt;p.episode):list.filter(n=&gt;n&lt;p.episode).pop();};
-    const fresh=Date.now()-lastComplete(p.name)&lt;10*60*1000;
+    const fresh=(lastComplete(p.name)&gt;0 &amp;&amp; choose()!==undefined)||Date.now()-lastComplete(p.name)&lt;10*60*1000;
     if(!fresh) {
       if(busy &amp;&amp; scanningName!==norm(p.name)) return status('Oprește întâi scanarea celuilalt serial.');
       pending=null;

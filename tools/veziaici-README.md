@@ -38,3 +38,5 @@ Public post 14116 at `https://clicksud.xin/wp-json/wp/v2/posts/14116?_fields=tit
 ## Playlist regression verification
 
 The Chromium test now verifies real main-frame URL changes from E1 to E2 and from E3 to E7, previous across gaps, and starting from the minimum discovered item, on both supported host fixtures. Cached transitions assert no new catalog request. The DOM test starts with unordered pages (E9/E7 first, E3/E5 later, no E1) and asserts no navigation until every catalog page is read; the chosen minimum is E3. HTML cursor wrap is also completed before playlist selection.
+
+An existing candidate from a previously completed catalog navigates directly even after the 10-minute freshness window (e.g. after watching a 42-minute episode). A stale playlist with no candidate rescans; manual reindex refreshes the catalog. This avoids blocking each cached Skip on a fresh scan. The DOM test verifies this with a 2-hour-old completed catalog.

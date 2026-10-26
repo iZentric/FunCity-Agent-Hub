@@ -97,11 +97,11 @@ test('playlist starts at minimum from ALL unordered API pages when E1 is absent'
  w.fetch=async u=>{const n=+new URL(u).searchParams.get('page');calls.push(n);assert.equal(w.destination,undefined,'must not choose a minimum from a partial catalog');return {ok:true,json:async()=>pages[n].map(e=>({title:`Las Fierbinti Sezonul 30 Episodul ${e}`,url:`https://clicksud.xin/opaque-${e}/`}))};};
  try{w.eval(script.replaceAll('location.assign(', 'window.__go('));w.__go=u=>w.destination=u;w.document.querySelector('#va-season').value='30';w.document.querySelector('#va-first').click();await until(()=>w.destination);assert.equal(w.destination,'https://clicksud.xin/opaque-3/');assert.deepEqual(calls,[1,2,3]);}finally{w.close();}
 });
-test('playlist Skip navigates E1→E2 and across gaps E3→E7 without fetching fresh cache',()=>{
+test('playlist Skip navigates E1→E2 and gaps E3→E7 even after a long episode without rescan',()=>{
  for(const [episode,next,episodes] of [[1,2,[1,2]],[3,7,[3,7,10]]]){
  const dom=new JSDOM(`<h1>Las Fierbinti Sezonul 30 Episodul ${episode}</h1>`,{url:`https://clicksud.xin/ep-${episode}/`,runScripts:'outside-only'});const w=dom.window;const cache={};
  for(const e of episodes)cache[`las fierbinti|30|${e}`]=[{url:`https://clicksud.xin/ep-${e}/`,title:`Las Fierbinti Sezonul 30 Episodul ${e}`}];
- w.localStorage.setItem('va-index-v1',JSON.stringify(cache));w.localStorage.setItem('va-api-complete-v1',JSON.stringify({'las fierbinti':Date.now()}));w.fetch=()=>{throw Error('Cached Skip must not scan');};
+ w.localStorage.setItem('va-index-v1',JSON.stringify(cache));w.localStorage.setItem('va-api-complete-v1',JSON.stringify({'las fierbinti':Date.now()-2*60*60*1000}));w.fetch=()=>{throw Error('Cached Skip must not scan');};
  try{w.eval(script.replaceAll('location.assign(', 'window.__go('));w.__go=u=>w.destination=u;assert.match(w.document.querySelector('#va-next').textContent,/Skip episod/);w.document.querySelector('#va-next').click();assert.equal(w.destination,`https://clicksud.xin/ep-${next}/`);assert.ok(w.document.querySelector(`link[rel=prefetch][href="https://clicksud.xin/ep-${next}/"]`));}finally{w.close();}
  }
 });
