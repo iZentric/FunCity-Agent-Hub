@@ -1,0 +1,29 @@
+name: Episode helper tests
+on:
+  push:
+    paths: ['tools/veziaici-*', 'tools/build-veziaici.cjs', 'tools/install-preview.html', '.github/workflows/episode-helper-tests.yml']
+  pull_request:
+    paths: ['tools/veziaici-*', 'tools/build-veziaici.cjs', 'tools/install-preview.html', '.github/workflows/episode-helper-tests.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify single-file distribution and offline installer are up to date
+        run: node tools/build-veziaici.cjs --check
+      - run: node --check tools/veziaici-install.user.js
+      - run: node --test tools/veziaici-helper.test.cjs tools/veziaici-api.test.cjs
+      - run: npm install --prefix /tmp/va-browser-test jsdom@26.1.0 --no-audit --no-fund
+      - name: DOM integration tests against actual install script
+        run: VA_SCRIPT=veziaici-install.user.js NODE_PATH=/tmp/va-browser-test/node_modules node --test tools/veziaici-browser.test.cjs
+      - run: npm install --prefix /tmp/va-e2e playwright-core@1.64.1 @sparticuz/chromium@153.0.0 --no-audit --no-fund
+      - name: Chromium cross-origin integration (controlled website and media-clock fixtures)
+        run: NODE_PATH=/tmp/va-e2e/node_modules node tools/veziaici-e2e.cjs
+      - name: Chromium Clicksud navigation and trusted iframe integration
+        run: VA_SITE=clicksud.xin NODE_PATH=/tmp/va-e2e/node_modules node tools/veziaici-e2e.cjs
